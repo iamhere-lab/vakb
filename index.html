@@ -218,6 +218,16 @@ footer a{color:var(--gold-soft)}
   .hero{padding-top:110px}
 }
 </style>
+<!-- ===== Google reCAPTCHA v2 (explicit render — two widgets on page) ===== -->
+<script src="https://www.google.com/recaptcha/api.js?onload=onCaptchaLoad&render=explicit" async defer></script>
+<style>
+.captcha-box{margin:4px 0 2px;min-height:78px}
+.captcha-err{display:none;color:#c0392b;font-size:.78rem;margin:-2px 0 8px}
+.captcha-box.invalid + .captcha-err{display:block}
+@media (max-width:370px){
+  .captcha-box{transform:scale(.86);transform-origin:0 0;min-height:68px}
+}
+</style>
 </head>
 <body>
 
@@ -297,6 +307,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <input type="checkbox" name="consent" value="Yes" checked>
           <span>I authorize the team to contact me via call, SMS, email &amp; WhatsApp, even if registered on DNC/NDNC. By submitting, I agree to the storage &amp; handling of my data by this website.</span>
         </label>
+        <div class="captcha-box" id="captchaHero"></div>
+        <p class="captcha-err">Please verify you're not a robot.</p>
         <button type="submit" class="btn-submit">Submit Enquiry</button>
         <p class="tnc">T &amp; C Apply*</p>
       </form>
@@ -581,6 +593,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <input type="checkbox" name="consent" value="Yes" checked>
         <span>I authorize the team to reach out via call, SMS, email &amp; WhatsApp, even if I am registered on DNC/NDNC. T&amp;C apply.</span>
       </label>
+      <div class="captcha-box" id="captchaPopup"></div>
+      <p class="captcha-err">Please verify you're not a robot.</p>
       <button type="submit" class="btn-submit">Submit Enquiry</button>
       <p class="tnc">T &amp; C Apply*</p>
     </form>
@@ -594,6 +608,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
    ========================================================= */
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzkbDwYnUQSINKKTJoqXRui7NogVS_5ww7j2EUrTsXhqW_5W081FNsI9voa5k66Nzk2Aw/exec";
 const THANK_YOU_PAGE = "thank-you.html";
+const RECAPTCHA_SITE_KEY = "PASTE_YOUR_SITE_KEY_HERE"; // from google.com/recaptcha/admin
+
+/* ---------- reCAPTCHA: render both widgets, map form id → widget id ---------- */
+const captchaWidgets = {}; // { heroForm: widgetId, popupForm: widgetId }
+function onCaptchaLoad(){
+  captchaWidgets.heroForm  = grecaptcha.render('captchaHero',  { sitekey: RECAPTCHA_SITE_KEY });
+  captchaWidgets.popupForm = grecaptcha.render('captchaPopup', { sitekey: RECAPTCHA_SITE_KEY });
+}
 
 /* ---------- Mobile nav ---------- */
 const hamburger = document.getElementById('hamburger');
@@ -660,11 +682,23 @@ document.querySelectorAll('.lead-form').forEach(form => {
     e.preventDefault();
     if(!validate(form)) return;
 
+    /* --- reCAPTCHA check --- */
+    const widgetId = captchaWidgets[form.id];
+    const captchaBox = form.querySelector('.captcha-box');
+    const token = (typeof grecaptcha !== 'undefined' && widgetId !== undefined)
+      ? grecaptcha.getResponse(widgetId) : '';
+    if(!token){
+      captchaBox.classList.add('invalid');
+      return;
+    }
+    captchaBox.classList.remove('invalid');
+
     const btn = form.querySelector('.btn-submit');
     btn.disabled = true;
     btn.textContent = 'Submitting…';
 
     const data = new FormData(form);
+    data.append('g-recaptcha-response', token);
     data.append('page_url', location.href);
     data.append('submitted_at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
 
@@ -672,6 +706,9 @@ document.querySelectorAll('.lead-form').forEach(form => {
       await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: data });
     } catch (err) {
       console.error('Lead submission error:', err);
+      grecaptcha.reset(widgetId);
+      btn.disabled = false;
+      btn.textContent = 'Submit Enquiry';
     }
 
     /* Optional: fire Google Ads conversion here before redirect
