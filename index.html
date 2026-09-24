@@ -632,6 +632,28 @@ document.querySelectorAll('input[name="phone"]').forEach(inp => {
   inp.addEventListener('input', () => { inp.value = inp.value.replace(/\D/g,'').slice(0,10); });
 });
 
+/* ---------- Visitor IP (fetched once on page load) ---------- */
+let visitorIP = '';
+async function fetchIP(){
+  const sources = [
+    ['https://api.ipify.org?format=json', j => j.ip],
+    ['https://api64.ipify.org?format=json', j => j.ip],
+    ['https://ipapi.co/json/', j => j.ip]
+  ];
+  for (const [url, pick] of sources){
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 3000);
+      const r = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(t);
+      const ip = pick(await r.json());
+      if (ip) return ip;
+    } catch (e) { /* try next source */ }
+  }
+  return '';
+}
+const ipReady = fetchIP().then(ip => { visitorIP = ip; return ip; });
+
 /* ---------- Validation + submit (both forms) ---------- */
 function validate(form){
   let ok = true;
@@ -662,6 +684,9 @@ document.querySelectorAll('.lead-form').forEach(form => {
     const data = new FormData(form);
     data.append('page_url', location.href);
     data.append('submitted_at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+    // Wait max 2s for IP so a slow/blocked IP lookup never stops the lead
+    const ip = visitorIP || await Promise.race([ipReady, new Promise(r => setTimeout(() => r(''), 2000))]);
+    data.append('ip_address', ip || 'Unavailable');
 
     try {
       await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: data });
