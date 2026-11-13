@@ -271,7 +271,9 @@
     var timer = setTimeout(function () { if (controller) controller.abort(); }, 15000);
 
     var mode = CFG.leadEndpointMode || "json";
-    var req = { method: "POST", signal: controller ? controller.signal : undefined };
+    /* keepalive lets the browser finish sending the lead even after the page moves on to the thank-you page. */
+    var canKeepAlive = "Request" in window && "keepalive" in Request.prototype;
+    var req = { method: "POST", signal: controller ? controller.signal : undefined, keepalive: canKeepAlive };
     function buildBody() {
       if (mode === "formdata") {
         /* multipart FormData, no-cors: exactly how this page has always posted to the Google Apps Script web app. */
@@ -290,23 +292,32 @@
         req.body = JSON.stringify(payload);
       }
     }
-    /* Wait at most 2s for the visitor IP so a slow or blocked lookup never stops the lead. */
-    var ipWait = visitorIP ? Promise.resolve(visitorIP) : Promise.race([ipReady, new Promise(function (r) { setTimeout(function () { r(""); }, 2000); })]);
-    ipWait.then(function (ip) {
-      payload.ip_address = ip || "Unavailable";
-      buildBody();
-      return fetch(CFG.leadEndpoint, req);
-    }).then(function (res) {
-      clearTimeout(timer);
-      if (res.type !== "opaque" && !res.ok) throw new Error("HTTP " + res.status);
+    /* Wait at most 0.4s for the visitor IP so a slow or blocked lookup never holds up the lead. */
+    var ipWait = visitorIP ? Promise.resolve(visitorIP) : Promise.race([ipReady, new Promise(function (r) { setTimeout(function () { r(""); }, 400); })]);
+    var finished = false, fastTimer = null;
+    function succeed() {
+      if (finished) return;
+      finished = true; clearTimeout(timer); clearTimeout(fastTimer);
       submitted = true; ss("ss_lead", "1"); rememberLead(phoneKey); unlockPlans();
       track("lead_submit_success", { form_id: formId, intent: intent, configuration: config || "not_specified", lead_id: leadId });
-      // One-time pass for the thank-you page: it fires the conversion event only when this is present.
       ss("vakb_ty", leadId);
       if (CFG.thankYouUrl) location.replace(CFG.thankYouUrl); // replace: Back doesn't return to a filled form
       else showSuccess(form, v.name, false, intent);
+    }
+    ipWait.then(function (ip) {
+      payload.ip_address = ip || "Unavailable";
+      buildBody();
+      var sent = fetch(CFG.leadEndpoint, req);
+      /* The sheet endpoint can take several seconds to answer. Its reply is unreadable anyway (no-cors),
+         so once the request is on its way, go to the thank-you page instead of making the visitor wait. */
+      if (canKeepAlive && CFG.thankYouUrl && mode !== "json") fastTimer = setTimeout(succeed, 600);
+      return sent;
+    }).then(function (res) {
+      if (res.type !== "opaque" && !res.ok) throw new Error("HTTP " + res.status);
+      succeed();
     }).catch(function (err) {
-      clearTimeout(timer);
+      if (finished) return;
+      clearTimeout(timer); clearTimeout(fastTimer);
       console.error("[VAKB] lead submit failed", err);
       track("lead_submit_error", { form_id: formId, reason: "network_or_server" });
       btn.disabled = false; sending = false; btn.textContent = label;
