@@ -644,3 +644,19 @@ a.btn-outline, a.btn { text-decoration: none; }
 .consent { align-items: center; font-size: 14.5px; }
 .consent input { margin-top: 0; }
 .hero-form .js-form-slot { min-height: 330px; }
+
+/* ---------- hero spec rows (logo + Homes / Location / Size / Price) ---------- */
+.ho-rows { margin: 10px 0 0; max-width: 520px; text-shadow: 0 1px 10px rgba(0, 0, 0, .55); }
+.ho-rows > div { display: grid; grid-template-columns: 112px 1fr; align-items: baseline; gap: 14px; padding: 13px 0; border-top: 1px solid rgba(230, 207, 142, .45); text-align: left; }
+.ho-rows > div:last-child { border-bottom: 1px solid rgba(230, 207, 142, .45); }
+.ho-rows dt { font-family: var(--caps); font-size: 11.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--gold-soft); }
+.ho-rows dd { margin: 0; font-size: 21px; font-weight: 500; line-height: 1.3; color: #fff; }
+.ho-rows-price dd { font-size: 29px; font-weight: 600; color: #fff; }
+.hero-mark { margin-bottom: 20px; }
+@media (max-width: 899px) {
+  .ho-rows { margin: 4px auto 0; }
+  .ho-rows > div { grid-template-columns: 86px 1fr; padding: 9px 0; gap: 10px; }
+  .ho-rows dd { font-size: 17.5px; }
+  .ho-rows-price dd { font-size: 23px; }
+  .hero-mark { margin-bottom: 14px; }
+}
