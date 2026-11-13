@@ -641,3 +641,6 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline-color:
 .ty-back { font-size: 16px; }
 a.btn-outline, a.btn { text-decoration: none; }
 .ty-card .fineprint { text-align: center; }
+.consent { align-items: center; font-size: 14.5px; }
+.consent input { margin-top: 0; }
+.hero-form .js-form-slot { min-height: 330px; }
